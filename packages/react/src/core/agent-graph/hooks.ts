@@ -1,6 +1,6 @@
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 
-import { useDeergraphRuntime } from "@/runtime-config";
+import { useDeergraphRuntime } from "../../runtime-config";
 
 import { fetchAgentGraph } from "./api";
 import type { AgentGraphSnapshot } from "./types";

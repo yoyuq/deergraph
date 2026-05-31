@@ -1,13 +1,13 @@
 import { X } from "lucide-react";
 
-import { ScrollArea } from "@/components/ui/scroll-area";
-import type { AgentGraphNode } from "@/core/agent-graph/types";
+import { ScrollArea } from "../ui/scroll-area";
+import type { AgentGraphNode } from "../../core/agent-graph/types";
 import {
   formatDuration,
   nodeRoleLabel,
   statusLabel,
-} from "@/core/agent-graph/visuals";
-import { cn } from "@/lib/cn";
+} from "../../core/agent-graph/visuals";
+import { cn } from "../../lib/cn";
 
 function Field({ label, value }: { label: string; value: string }) {
   return (

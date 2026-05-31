@@ -7,6 +7,7 @@
  *   - no run id  -> a hint state (never a fabricated graph), query disabled
  *   - run id     -> the real AgentGraphView, fed by useAgentGraph
  *   - closed     -> the query is disabled (enabled:false)
+  - polling    -> host-controlled refetchIntervalMs is passed through
  */
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
@@ -90,14 +91,39 @@ describe("ChatAgentGraphPanel", () => {
     );
   });
 
-  test("disables the query entirely when the panel is closed", () => {
+  test("passes host-controlled polling interval through", () => {
     mockedUseAgentGraph.mockReturnValue(queryResult({ data: snapshot() }));
 
-    render(<ChatAgentGraphPanel runId="r1" open={false} onClose={vi.fn()} />);
+    render(
+      <ChatAgentGraphPanel
+        runId="r1"
+        open
+        refetchIntervalMs={2500}
+        onClose={vi.fn()}
+      />,
+    );
 
     expect(mockedUseAgentGraph).toHaveBeenCalledWith(
       "r1",
-      expect.objectContaining({ enabled: false }),
+      expect.objectContaining({ enabled: true, refetchIntervalMs: 2500 }),
+    );
+  });
+
+  test("disables the query and polling entirely when the panel is closed", () => {
+    mockedUseAgentGraph.mockReturnValue(queryResult({ data: snapshot() }));
+
+    render(
+      <ChatAgentGraphPanel
+        runId="r1"
+        open={false}
+        refetchIntervalMs={2500}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(mockedUseAgentGraph).toHaveBeenCalledWith(
+      "r1",
+      expect.objectContaining({ enabled: false, refetchIntervalMs: false }),
     );
   });
 });

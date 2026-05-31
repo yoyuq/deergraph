@@ -3,8 +3,8 @@
 import { AlertTriangle } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import type { AgentGraphSnapshot } from "@/core/agent-graph/types";
-import { cn } from "@/lib/cn";
+import type { AgentGraphSnapshot } from "../../core/agent-graph/types";
+import { cn } from "../../lib/cn";
 
 import { AgentGraphCanvas } from "./agent-graph-canvas";
 import { AgentGraphDetailsPanel } from "./agent-graph-details-panel";

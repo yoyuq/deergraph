@@ -1,14 +1,14 @@
 import { Handle, type NodeProps, Position } from "@xyflow/react";
 
-import type { AgentFlowNode } from "@/core/agent-graph/layout";
-import type { AgentGraphNode } from "@/core/agent-graph/types";
+import type { AgentFlowNode } from "../../core/agent-graph/layout";
+import type { AgentGraphNode } from "../../core/agent-graph/types";
 import {
   nodeRoleLabel,
   statusLabel,
   statusTone,
   type StatusTone,
-} from "@/core/agent-graph/visuals";
-import { cn } from "@/lib/cn";
+} from "../../core/agent-graph/visuals";
+import { cn } from "../../lib/cn";
 
 const TONE_BADGE: Record<StatusTone, string> = {
   neutral: "bg-muted text-muted-foreground",

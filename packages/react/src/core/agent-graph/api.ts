@@ -1,4 +1,4 @@
-import { getDeergraphRuntime, type DeergraphRuntimeConfig } from "@/runtime-config";
+import { getDeergraphRuntime, type DeergraphRuntimeConfig } from "../../runtime-config";
 
 import type { AgentGraphSnapshot } from "./types";
 

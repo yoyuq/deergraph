@@ -2,9 +2,9 @@
 
 import { Workflow, X } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { useAgentGraph } from "@/core/agent-graph/hooks";
-import { cn } from "@/lib/cn";
+import { Button } from "../ui/button";
+import { useAgentGraph } from "../../core/agent-graph/hooks";
+import { cn } from "../../lib/cn";
 
 import { AgentGraphView } from "./agent-graph-view";
 
@@ -17,6 +17,8 @@ export interface ChatAgentGraphPanelProps {
   runId: string | null;
   /** Whether the panel is visible. Gates the query so a closed panel is inert. */
   open: boolean;
+  /** Host-controlled polling interval. Pass a number only while the host run is active. */
+  refetchIntervalMs?: number | false;
   onClose: () => void;
   className?: string;
 }
@@ -29,12 +31,14 @@ export interface ChatAgentGraphPanelProps {
 export function ChatAgentGraphPanel({
   runId,
   open,
+  refetchIntervalMs = false,
   onClose,
   className,
 }: ChatAgentGraphPanelProps) {
   const hasRun = runId != null;
   const query = useAgentGraph(runId ?? undefined, {
     enabled: open && hasRun,
+    refetchIntervalMs: open && hasRun ? refetchIntervalMs : false,
   });
 
   return (
