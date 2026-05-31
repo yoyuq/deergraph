@@ -1,0 +1,12 @@
+{
+  "name": "@deergraph/react",
+  "version": "0.1.0",
+  "description": "DeerGraph React UI + hooks (skeleton). AgentGraphView/Canvas/Node/Details/States/ChatAgentGraphPanel.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "//": "Placeholder. Real test/build/typecheck wiring is added when code is migrated."
+  }
+}

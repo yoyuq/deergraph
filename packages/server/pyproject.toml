@@ -1,0 +1,20 @@
+# DeerGraph server package (skeleton — ADR-003 §3).
+# Python: graph runtime (models/sanitizer/event_mapper/builder) + FastAPI router.
+# This is a shell only — source modules and the RunEventSource/Auth contracts
+# (ADR-003 §4.1, §4.2) are migrated in a later step.
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deergraph-server"
+version = "0.1.0"
+description = "DeerGraph runtime graph builder + FastAPI router for LangGraph agents."
+requires-python = ">=3.12"
+dependencies = [
+  # Contracts are injected by the host app (see ADR-003 §4); pinned later.
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["deergraph*"]

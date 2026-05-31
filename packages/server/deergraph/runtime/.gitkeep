@@ -1,0 +1,2 @@
+# placeholder — runtime graph modules (models/sanitizer/event_mapper/builder)
+# are migrated here in a later step (ADR-003 §2, §3). Do not add code in Step 1.
