@@ -1,5 +1,16 @@
 export { fetchAgentGraph } from "./api";
-export { agentGraphQueryKey, useAgentGraph } from "./hooks";
+export {
+  agentGraphQueryKey,
+  useAgentGraph,
+  type UseAgentGraphOptions,
+} from "./hooks";
+export {
+  pickLatestRunId,
+  selectActiveRunId,
+  type ActiveRun,
+  type RunLike,
+} from "./run-id";
+export { useResolvedRunId } from "./use-resolved-run-id";
 export {
   COLUMN_GAP,
   ROW_GAP,
