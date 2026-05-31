@@ -1,12 +1,49 @@
 {
   "name": "@deergraph/react",
   "version": "0.1.0",
-  "description": "DeerGraph React UI + hooks (skeleton). AgentGraphView/Canvas/Node/Details/States/ChatAgentGraphPanel.",
+  "description": "DeerGraph React UI + hooks. AgentGraphView / Canvas / Node / Details / States / ChatAgentGraphPanel.",
+  "private": true,
   "type": "module",
+  "license": "MIT",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./components": {
+      "types": "./src/components/agent-graph/index.ts",
+      "import": "./src/components/agent-graph/index.ts"
+    },
+    "./types": {
+      "types": "./src/core/agent-graph/types.ts",
+      "import": "./src/core/agent-graph/types.ts"
+    }
   },
   "scripts": {
-    "//": "Placeholder. Real test/build/typecheck wiring is added when code is migrated."
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "//": "build script intentionally absent until Step 4b decides bundling strategy (tsup vs unbundled)."
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "dependencies": {
+    "@xyflow/react": "^12.0.0",
+    "@tanstack/react-query": "^5.0.0",
+    "clsx": "^2.1.0",
+    "tailwind-merge": "^2.5.0"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "happy-dom": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
   }
 }

@@ -2,9 +2,13 @@
   "name": "deergraph",
   "version": "0.1.0",
   "private": true,
-  "description": "DeerGraph monorepo (skeleton). Visual runtime graph for LangGraph agents, extracted from deer-flow per ADR-003.",
+  "description": "DeerGraph monorepo. Visual runtime graph for LangGraph agents, extracted from deer-flow per ADR-003.",
   "packageManager": "pnpm@9.0.0",
   "scripts": {
-    "//": "Placeholder root scripts. Real wiring is added when code is migrated."
+    "test": "pnpm -r --if-present test",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "lint": "pnpm -r --if-present lint",
+    "build": "pnpm -r --if-present build",
+    "//": "Top-level scripts fan out to each workspace; see BUILDABILITY.md for current state."
   }
 }

@@ -1,5 +1,3 @@
-# DeerGraph monorepo workspace (skeleton — ADR-003 §3).
-# Code is migrated in a later step; this only declares the package layout.
+# DeerGraph monorepo workspace (ADR-003 §3).
 packages:
   - "packages/*"
-  - "examples/*"
