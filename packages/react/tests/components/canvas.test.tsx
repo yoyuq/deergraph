@@ -8,7 +8,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test } from "vitest";
 
-import { AgentGraphCanvas } from "@/components/workspace/agent-graph/agent-graph-canvas";
+import { AgentGraphCanvas } from "@/components/agent-graph/agent-graph-canvas";
 import type { AgentGraphSnapshot } from "@/core/agent-graph/types";
 
 function fixture(): AgentGraphSnapshot {

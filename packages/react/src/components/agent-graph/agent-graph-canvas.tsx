@@ -14,7 +14,7 @@ import {
   snapshotToFlow,
 } from "@/core/agent-graph/layout";
 import type { AgentGraphSnapshot } from "@/core/agent-graph/types";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 
 import { AgentGraphNode } from "./agent-graph-node";
 

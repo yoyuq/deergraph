@@ -1,17 +1,16 @@
 """Build a DeerGraph snapshot for one run from persisted events.
 
-Read-only, phase-1 scope. Sources only events already in ``RunEventStore``:
-``llm.human.input``, ``llm.ai.response``, ``llm.tool.result`` (message
-category) plus ``run.end`` / ``run.error``. No realtime, no ``task_*``.
+Read-only, phase-1 scope. Sources events from a :class:`RunEventSource`
+(ADR-004 contract 1): ``llm.human.input``, ``llm.ai.response``,
+``llm.tool.result`` (message category) plus ``run.end`` / ``run.error``. No
+realtime, no ``task_*``.
 
-Truncation handling (OpenClaw review decision 3): message events are pulled via
-``list_messages_by_run`` cursor pagination — the store ``list_events`` contract
-is NOT touched. ``run.end`` / ``run.error`` are few and fetched with a small
-``list_events`` filter. A safety cap sets ``truncated=true`` rather than
-silently dropping events.
+The source returns all of a run's events; the builder sorts by ``seq``,
+partitions message vs terminal events, and applies a safety cap that sets
+``truncated=true`` rather than silently dropping events.
 
-Best-effort throughout: a builder failure must never break the gateway request
-that calls it (the router also guards), and must never affect the main task.
+Best-effort throughout: a builder failure must never break the request that
+calls it (the router also guards), and must never affect the main task.
 """
 
 from __future__ import annotations
@@ -20,77 +19,65 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from deerflow.runtime.events.store.base import RunEventStore
-from deerflow.runtime.graph import event_mapper as em
-from deerflow.runtime.graph.models import GraphEdge, GraphNode, GraphSnapshot
-from deerflow.runtime.graph.sanitizer import Sanitizer
+from deergraph.runtime import event_mapper as em
+from deergraph.runtime.models import GraphEdge, GraphNode, GraphSnapshot
+from deergraph.runtime.ports import RunEventSource
+from deergraph.runtime.sanitizer import Sanitizer
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_EVENTS = 2000
-DEFAULT_PAGE_SIZE = 500
+
+_TERMINAL_EVENT_TYPES = ("run.end", "run.error")
 
 
-async def build_graph_snapshot(
-    store: RunEventStore,
+def build_graph_snapshot(
+    event_source: RunEventSource,
     thread_id: str,
     run_id: str,
     *,
     max_events: int = DEFAULT_MAX_EVENTS,
-    page_size: int = DEFAULT_PAGE_SIZE,
     sanitizer: Sanitizer | None = None,
 ) -> GraphSnapshot:
-    """Assemble the MVP graph (User -> Lead -> Subagent -> Lead -> Final)."""
+    """Assemble the MVP graph (User -> Lead -> Subagent -> Lead -> Final).
+
+    ``thread_id`` is a compatibility parameter used only to stamp node/snapshot
+    fields; the contract itself is ``run_id``-oriented (ADR-004). Callers that
+    only have a ``run_id`` may derive ``thread_id`` from the events or pass "".
+    """
     sani = sanitizer or Sanitizer()
 
-    messages, truncated = await _collect_messages(store, thread_id, run_id, max_events, page_size)
-    end_events = await _collect_run_end(store, thread_id, run_id)
+    events = _list_events(event_source, run_id)
+    messages, truncated = _select_messages(events, max_events)
+    terminal = [e for e in events if e.get("event_type") in _TERMINAL_EVENT_TYPES]
 
     builder = _SnapshotAssembler(thread_id, run_id, sani)
     builder.ingest_messages(messages)
-    builder.finalize(end_events)
+    builder.finalize(terminal)
 
     return builder.snapshot(truncated=truncated)
 
 
-async def _collect_messages(
-    store: RunEventStore,
-    thread_id: str,
-    run_id: str,
-    max_events: int,
-    page_size: int,
-) -> tuple[list[dict[str, Any]], bool]:
-    """Cursor-paginate message events for a run; flag truncation at the cap."""
-    collected: list[dict[str, Any]] = []
-    cursor = 0
-    truncated = False
-    while True:
-        page = await store.list_messages_by_run(thread_id, run_id, limit=page_size, after_seq=cursor)
-        if not page:
-            break
-        collected.extend(page)
-        cursor = page[-1]["seq"]
-        if len(collected) >= max_events:
-            truncated = True
-            collected = collected[:max_events]
-            break
-        if len(page) < page_size:
-            break
-    return collected, truncated
-
-
-async def _collect_run_end(store: RunEventStore, thread_id: str, run_id: str) -> list[dict[str, Any]]:
-    """Fetch the (few) run terminal events. These never hit the 500 cap."""
+def _list_events(event_source: RunEventSource, run_id: str) -> list[dict[str, Any]]:
+    """Fetch + order a run's events. Best-effort: never raise to the caller."""
     try:
-        return await store.list_events(
-            thread_id,
-            run_id,
-            event_types=["run.end", "run.error"],
-            limit=10,
-        )
-    except Exception:  # noqa: BLE001 - best-effort, terminal events are optional
-        logger.warning("failed to fetch run.end/run.error for %s/%s", thread_id, run_id, exc_info=True)
+        events = list(event_source.list_events(run_id))
+    except Exception:  # noqa: BLE001 - best-effort, never break the graph
+        logger.warning("failed to list events for run %s", run_id, exc_info=True)
         return []
+    events.sort(key=lambda e: e.get("seq", 0))
+    return events
+
+
+def _select_messages(
+    events: list[dict[str, Any]],
+    max_events: int,
+) -> tuple[list[dict[str, Any]], bool]:
+    """Pick message-category events, capping at ``max_events`` and flagging it."""
+    messages = [e for e in events if e.get("category") == "message"]
+    if len(messages) > max_events:
+        return messages[:max_events], True
+    return messages, False
 
 
 class _SnapshotAssembler:

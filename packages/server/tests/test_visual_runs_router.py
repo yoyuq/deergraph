@@ -1,23 +1,23 @@
 """API tests for the DeerGraph visual runs router (phase 1).
 
-Exercises GET /api/visual/runs/{thread_id}/{run_id}/graph end-to-end through a
-TestClient with stub auth. The event store is a real ``MemoryRunEventStore``
-populated with RunJournal-shaped events — no mock of the product path.
+Exercises the router built by :func:`create_router` end-to-end through a
+TestClient. The event source is a real :class:`MemoryRunEventSource` populated
+with RunJournal-shaped events — no mock of the product path. Auth is injected
+via the ``auth_dep`` factory parameter (ADR-004 contract 2).
 """
 
 from __future__ import annotations
 
-import asyncio
-
-from _router_auth_helpers import make_authed_test_app
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
-from app.gateway.routers import visual_runs
-from deerflow.runtime.events.store.memory import MemoryRunEventStore
+from deergraph.server import create_router
+from deergraph.testing import MemoryRunEventSource
 
 THREAD = "t1"
 RUN = "r1"
 GRAPH_PATH = f"/api/visual/runs/{THREAD}/{RUN}/graph"
+RUN_ONLY_PATH = f"/api/visual/runs/{RUN}/graph"
 
 
 # ---------------------------------------------------------------------------
@@ -25,9 +25,9 @@ GRAPH_PATH = f"/api/visual/runs/{THREAD}/{RUN}/graph"
 # ---------------------------------------------------------------------------
 
 
-async def _put(store, event_type, content, *, caller="lead_agent", category="message"):
+def _put(store, event_type, content, *, caller="lead_agent", category="message"):
     meta = {} if caller is None else {"caller": caller}
-    await store.put(
+    store.put(
         thread_id=THREAD,
         run_id=RUN,
         event_type=event_type,
@@ -37,35 +37,35 @@ async def _put(store, event_type, content, *, caller="lead_agent", category="mes
     )
 
 
-def _populated_store() -> MemoryRunEventStore:
-    store = MemoryRunEventStore()
-
-    async def _seed():
-        await _put(store, "llm.human.input", {"type": "human", "content": "Research quantum computing"})
-        await _put(
-            store,
-            "llm.ai.response",
-            {
-                "type": "ai",
-                "content": "delegating",
-                "tool_calls": [{"name": "task", "id": "call_1", "args": {"description": "research basics"}}],
-            },
-        )
-        await _put(
-            store,
-            "llm.tool.result",
-            {"type": "tool", "tool_call_id": "call_1", "content": "found 3 papers", "status": "success"},
-        )
-        await _put(store, "llm.ai.response", {"type": "ai", "content": "Quantum uses qubits.", "tool_calls": []})
-
-    asyncio.run(_seed())
+def _populated_store() -> MemoryRunEventSource:
+    store = MemoryRunEventSource()
+    _put(store, "llm.human.input", {"type": "human", "content": "Research quantum computing"})
+    _put(
+        store,
+        "llm.ai.response",
+        {
+            "type": "ai",
+            "content": "delegating",
+            "tool_calls": [{"name": "task", "id": "call_1", "args": {"description": "research basics"}}],
+        },
+    )
+    _put(
+        store,
+        "llm.tool.result",
+        {"type": "tool", "tool_call_id": "call_1", "content": "found 3 papers", "status": "success"},
+    )
+    _put(store, "llm.ai.response", {"type": "ai", "content": "Quantum uses qubits.", "tool_calls": []})
     return store
 
 
-def _make_app(store: MemoryRunEventStore, *, owner_check_passes: bool = True):
-    app = make_authed_test_app(owner_check_passes=owner_check_passes)
-    app.include_router(visual_runs.router)
-    app.state.run_event_store = store
+def _make_app(store: MemoryRunEventSource, *, owner_check_passes: bool = True) -> FastAPI:
+    def auth_dep() -> None:
+        if not owner_check_passes:
+            # Mirror the host's owner-check denial as a 404 (don't reveal existence).
+            raise HTTPException(status_code=404)
+
+    app = FastAPI()
+    app.include_router(create_router(event_source=store, auth_dep=auth_dep, prefix="/api"))
     return app
 
 
@@ -93,8 +93,20 @@ def test_graph_endpoint_returns_snapshot():
     assert len(body["edges"]) >= 4
 
 
+def test_run_only_endpoint_recovers_thread_id_from_events():
+    app = _make_app(_populated_store())
+    with TestClient(app) as client:
+        response = client.get(RUN_ONLY_PATH)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["runId"] == RUN
+    # thread id is recovered from the events even though the path omits it.
+    assert body["threadId"] == THREAD
+
+
 def test_empty_run_returns_empty_graph_not_500():
-    app = _make_app(MemoryRunEventStore())
+    app = _make_app(MemoryRunEventSource())
     with TestClient(app) as client:
         response = client.get(GRAPH_PATH)
 

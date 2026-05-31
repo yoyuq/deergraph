@@ -1,25 +1,23 @@
 """Integration-ish unit tests for the DeerGraph builder (phase 1).
 
-Builds GraphSnapshots from a real MemoryRunEventStore populated with events
-shaped like RunJournal output. No mocks of the product path — only the store
-is the in-memory backend used in production for ``run_events.backend=memory``.
+Builds GraphSnapshots from a real :class:`MemoryRunEventSource` populated with
+events shaped like RunJournal output. No mocks of the product path — only the
+``RunEventSource`` is the in-memory test double deergraph ships for this use.
 """
 
 from __future__ import annotations
 
-import pytest
-
-from deerflow.runtime.events.store.memory import MemoryRunEventStore
-from deerflow.runtime.graph import event_mapper as em
-from deerflow.runtime.graph.builder import build_graph_snapshot
+from deergraph.runtime import event_mapper as em
+from deergraph.runtime.builder import build_graph_snapshot
+from deergraph.testing import MemoryRunEventSource
 
 THREAD = "t1"
 RUN = "r1"
 
 
-async def _put(store, event_type, content, *, caller="lead_agent", category="message"):
+def _put(store, event_type, content, *, caller="lead_agent", category="message"):
     meta = {} if caller is None else {"caller": caller}
-    return await store.put(
+    return store.put(
         thread_id=THREAD,
         run_id=RUN,
         event_type=event_type,
@@ -67,16 +65,15 @@ def _has_edge(snap, source, target, type_):
 
 
 class TestFullChain:
-    @pytest.mark.anyio
-    async def test_user_lead_subagent_lead_final(self):
-        store = MemoryRunEventStore()
-        await _put(store, "llm.human.input", _human("Research quantum computing"))
-        await _put(store, "llm.ai.response", _ai_with_task("call_1", "research quantum basics"))
-        await _put(store, "llm.tool.result", _tool_result("call_1", "found 3 papers"))
-        await _put(store, "llm.ai.response", _ai_final("Quantum computing uses qubits."))
-        await _put(store, "run.end", {"output": "done"}, caller=None, category="outputs")
+    def test_user_lead_subagent_lead_final(self):
+        store = MemoryRunEventSource()
+        _put(store, "llm.human.input", _human("Research quantum computing"))
+        _put(store, "llm.ai.response", _ai_with_task("call_1", "research quantum basics"))
+        _put(store, "llm.tool.result", _tool_result("call_1", "found 3 papers"))
+        _put(store, "llm.ai.response", _ai_final("Quantum computing uses qubits."))
+        _put(store, "run.end", {"output": "done"}, caller=None, category="outputs")
 
-        snap = await build_graph_snapshot(store, THREAD, RUN)
+        snap = build_graph_snapshot(store, THREAD, RUN)
 
         ids = _ids(snap.nodes)
         assert em.USER_NODE_ID in ids
@@ -96,17 +93,16 @@ class TestFullChain:
         assert snap.thread_id == THREAD
         assert snap.run_id == RUN
 
-    @pytest.mark.anyio
-    async def test_multiple_subagents(self):
-        store = MemoryRunEventStore()
-        await _put(store, "llm.human.input", _human("Compare A and B"))
-        await _put(store, "llm.ai.response", _ai_with_task("call_1", "research A"))
-        await _put(store, "llm.ai.response", _ai_with_task("call_2", "research B"))
-        await _put(store, "llm.tool.result", _tool_result("call_1", "A facts"))
-        await _put(store, "llm.tool.result", _tool_result("call_2", "B facts"))
-        await _put(store, "llm.ai.response", _ai_final("A and B compared."))
+    def test_multiple_subagents(self):
+        store = MemoryRunEventSource()
+        _put(store, "llm.human.input", _human("Compare A and B"))
+        _put(store, "llm.ai.response", _ai_with_task("call_1", "research A"))
+        _put(store, "llm.ai.response", _ai_with_task("call_2", "research B"))
+        _put(store, "llm.tool.result", _tool_result("call_1", "A facts"))
+        _put(store, "llm.tool.result", _tool_result("call_2", "B facts"))
+        _put(store, "llm.ai.response", _ai_final("A and B compared."))
 
-        snap = await build_graph_snapshot(store, THREAD, RUN)
+        snap = build_graph_snapshot(store, THREAD, RUN)
         ids = _ids(snap.nodes)
         assert em.subagent_node_id("call_1") in ids
         assert em.subagent_node_id("call_2") in ids
@@ -120,36 +116,33 @@ class TestFullChain:
 
 
 class TestFailureModes:
-    @pytest.mark.anyio
-    async def test_run_error_produces_error_final(self):
-        store = MemoryRunEventStore()
-        await _put(store, "llm.human.input", _human("Do the thing"))
-        await _put(store, "llm.ai.response", _ai_with_task("call_1", "do it"))
-        await _put(store, "run.error", "RuntimeError: kaboom", caller=None, category="error")
+    def test_run_error_produces_error_final(self):
+        store = MemoryRunEventSource()
+        _put(store, "llm.human.input", _human("Do the thing"))
+        _put(store, "llm.ai.response", _ai_with_task("call_1", "do it"))
+        _put(store, "run.error", "RuntimeError: kaboom", caller=None, category="error")
 
-        snap = await build_graph_snapshot(store, THREAD, RUN)
+        snap = build_graph_snapshot(store, THREAD, RUN)
         final = _node(snap, em.FINAL_NODE_ID)
         assert final.type == "error"
         assert final.status == "failed"
         assert "kaboom" in final.error
 
-    @pytest.mark.anyio
-    async def test_failed_tool_result_marks_subagent_failed(self):
-        store = MemoryRunEventStore()
-        await _put(store, "llm.human.input", _human("q"))
-        await _put(store, "llm.ai.response", _ai_with_task("call_1", "do it"))
-        await _put(store, "llm.tool.result", _tool_result("call_1", "error occurred", status="error"))
+    def test_failed_tool_result_marks_subagent_failed(self):
+        store = MemoryRunEventSource()
+        _put(store, "llm.human.input", _human("q"))
+        _put(store, "llm.ai.response", _ai_with_task("call_1", "do it"))
+        _put(store, "llm.tool.result", _tool_result("call_1", "error occurred", status="error"))
 
-        snap = await build_graph_snapshot(store, THREAD, RUN)
+        snap = build_graph_snapshot(store, THREAD, RUN)
         assert _node(snap, em.subagent_node_id("call_1")).status == "failed"
 
-    @pytest.mark.anyio
-    async def test_orphan_tool_result_does_not_crash(self):
-        store = MemoryRunEventStore()
-        await _put(store, "llm.human.input", _human("q"))
-        await _put(store, "llm.tool.result", _tool_result("call_unknown", "orphan result"))
+    def test_orphan_tool_result_does_not_crash(self):
+        store = MemoryRunEventSource()
+        _put(store, "llm.human.input", _human("q"))
+        _put(store, "llm.tool.result", _tool_result("call_unknown", "orphan result"))
 
-        snap = await build_graph_snapshot(store, THREAD, RUN)
+        snap = build_graph_snapshot(store, THREAD, RUN)
         # No subagent node for the orphan; no returns edge; still returns cleanly.
         assert em.subagent_node_id("call_unknown") not in _ids(snap.nodes)
         assert not any(e.type == "returns" for e in snap.edges)
@@ -161,55 +154,51 @@ class TestFailureModes:
 
 
 class TestEdgeCases:
-    @pytest.mark.anyio
-    async def test_empty_run_returns_empty_snapshot(self):
-        store = MemoryRunEventStore()
-        snap = await build_graph_snapshot(store, THREAD, RUN)
+    def test_empty_run_returns_empty_snapshot(self):
+        store = MemoryRunEventSource()
+        snap = build_graph_snapshot(store, THREAD, RUN)
         assert snap.nodes == []
         assert snap.edges == []
         assert snap.truncated is False
 
-    @pytest.mark.anyio
-    async def test_repeated_build_is_stable(self):
-        store = MemoryRunEventStore()
-        await _put(store, "llm.human.input", _human("q"))
-        await _put(store, "llm.ai.response", _ai_with_task("call_1", "do it"))
-        await _put(store, "llm.tool.result", _tool_result("call_1", "ok"))
-        await _put(store, "llm.ai.response", _ai_final("answer"))
+    def test_repeated_build_is_stable(self):
+        store = MemoryRunEventSource()
+        _put(store, "llm.human.input", _human("q"))
+        _put(store, "llm.ai.response", _ai_with_task("call_1", "do it"))
+        _put(store, "llm.tool.result", _tool_result("call_1", "ok"))
+        _put(store, "llm.ai.response", _ai_final("answer"))
 
-        snap1 = await build_graph_snapshot(store, THREAD, RUN)
-        snap2 = await build_graph_snapshot(store, THREAD, RUN)
+        snap1 = build_graph_snapshot(store, THREAD, RUN)
+        snap2 = build_graph_snapshot(store, THREAD, RUN)
         assert snap1.to_dict()["nodes"] == snap2.to_dict()["nodes"]
         assert snap1.to_dict()["edges"] == snap2.to_dict()["edges"]
 
-    @pytest.mark.anyio
-    async def test_truncation_flag_set_when_cap_hit(self):
-        store = MemoryRunEventStore()
-        await _put(store, "llm.human.input", _human("q"))
-        await _put(store, "llm.ai.response", _ai_with_task("call_1", "a"))
-        await _put(store, "llm.tool.result", _tool_result("call_1", "ok"))
-        await _put(store, "llm.ai.response", _ai_final("answer"))
+    def test_truncation_flag_set_when_cap_hit(self):
+        store = MemoryRunEventSource()
+        _put(store, "llm.human.input", _human("q"))
+        _put(store, "llm.ai.response", _ai_with_task("call_1", "a"))
+        _put(store, "llm.tool.result", _tool_result("call_1", "ok"))
+        _put(store, "llm.ai.response", _ai_final("answer"))
 
-        snap = await build_graph_snapshot(store, THREAD, RUN, max_events=2)
+        snap = build_graph_snapshot(store, THREAD, RUN, max_events=2)
         assert snap.truncated is True
 
-    @pytest.mark.anyio
-    async def test_subagent_internal_events_are_ignored(self):
-        store = MemoryRunEventStore()
-        await _put(store, "llm.human.input", _human("q"))
-        await _put(store, "llm.ai.response", _ai_with_task("call_1", "research"))
+    def test_subagent_internal_events_are_ignored(self):
+        store = MemoryRunEventSource()
+        _put(store, "llm.human.input", _human("q"))
+        _put(store, "llm.ai.response", _ai_with_task("call_1", "research"))
         # A subagent-internal AIMessage with its own (non-task) tool call must
         # not create lead-level subagent nodes.
-        await _put(
+        _put(
             store,
             "llm.ai.response",
             {"type": "ai", "tool_calls": [{"name": "read_file", "id": "inner_1", "args": {}}]},
             caller="subagent:research",
         )
-        await _put(store, "llm.tool.result", _tool_result("call_1", "done"))
-        await _put(store, "llm.ai.response", _ai_final("answer"))
+        _put(store, "llm.tool.result", _tool_result("call_1", "done"))
+        _put(store, "llm.ai.response", _ai_final("answer"))
 
-        snap = await build_graph_snapshot(store, THREAD, RUN)
+        snap = build_graph_snapshot(store, THREAD, RUN)
         subagent_nodes = [n for n in snap.nodes if n.type == "subagent"]
         assert len(subagent_nodes) == 1
         assert subagent_nodes[0].id == em.subagent_node_id("call_1")

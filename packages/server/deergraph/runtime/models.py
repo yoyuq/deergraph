@@ -11,6 +11,10 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Literal
 
+# A persisted run event as a plain store record. deergraph reads it
+# defensively (``event.get(...)``) and never depends on a host event class.
+RunEvent = dict[str, Any]
+
 NodeType = Literal["user", "lead_agent", "subagent", "tool", "final", "error"]
 NodeStatus = Literal["pending", "running", "completed", "failed", "cancelled", "timeout"]
 EdgeType = Literal["input", "delegates", "returns", "uses_tool", "produces"]

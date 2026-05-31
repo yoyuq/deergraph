@@ -10,7 +10,6 @@ export {
   type ActiveRun,
   type RunLike,
 } from "./run-id";
-export { useResolvedRunId } from "./use-resolved-run-id";
 export {
   COLUMN_GAP,
   ROW_GAP,

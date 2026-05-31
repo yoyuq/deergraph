@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 /**
  * Tests for the `useAgentGraph` react-query hook. The real data path is pinned:
- * the hook calls `fetchAgentGraph(threadId, runId)` (the live stage-1 API
- * client) and is disabled until both ids are present. We mock only the network
- * client, not the query wiring.
+ * the hook calls `fetchAgentGraph(runId)` (the live stage-1 API client) and is
+ * disabled until a run id is present. We mock only the network client, not the
+ * query wiring.
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, renderHook, waitFor } from "@testing-library/react";
@@ -17,6 +17,7 @@ vi.mock("@/core/agent-graph/api", () => ({
 import { fetchAgentGraph } from "@/core/agent-graph/api";
 import { useAgentGraph } from "@/core/agent-graph/hooks";
 import type { AgentGraphSnapshot } from "@/core/agent-graph/types";
+import { DeergraphProvider, type DeergraphRuntimeConfig } from "@/runtime-config";
 
 const mockedFetch = vi.mocked(fetchAgentGraph);
 
@@ -32,14 +33,17 @@ function snapshot(): AgentGraphSnapshot {
   };
 }
 
-function wrapper() {
+function wrapper(runtime?: DeergraphRuntimeConfig) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   function QueryWrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    const tree = runtime ? (
+      <DeergraphProvider value={runtime}>{children}</DeergraphProvider>
+    ) : (
+      children
     );
+    return <QueryClientProvider client={client}>{tree}</QueryClientProvider>;
   }
   return QueryWrapper;
 }
@@ -53,20 +57,37 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("useAgentGraph", () => {
-  test("fetches the snapshot via the real API client when ids are present", async () => {
+  test("fetches the snapshot via the real API client when a run id is present", async () => {
     const snap = snapshot();
     mockedFetch.mockResolvedValueOnce(snap);
 
-    const { result } = renderHook(() => useAgentGraph("t1", "r1"), {
+    const { result } = renderHook(() => useAgentGraph("r1"), {
       wrapper: wrapper(),
     });
 
     await waitFor(() => expect(result.current.data).toEqual(snap));
-    expect(mockedFetch).toHaveBeenCalledWith("t1", "r1");
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+    expect(mockedFetch.mock.calls[0]?.[0]).toBe("r1");
   });
 
-  test("is disabled (no fetch) until both ids are present", () => {
-    renderHook(() => useAgentGraph(undefined, undefined), {
+  test("passes DeergraphProvider runtime config to the API client", async () => {
+    const snap = snapshot();
+    const runtime = {
+      fetcher: vi.fn<typeof fetch>(),
+      baseUrl: "https://host.example",
+    };
+    mockedFetch.mockResolvedValueOnce(snap);
+
+    const { result } = renderHook(() => useAgentGraph("r1"), {
+      wrapper: wrapper(runtime),
+    });
+
+    await waitFor(() => expect(result.current.data).toEqual(snap));
+    expect(mockedFetch).toHaveBeenCalledWith("r1", runtime);
+  });
+
+  test("is disabled (no fetch) until a run id is present", () => {
+    renderHook(() => useAgentGraph(undefined), {
       wrapper: wrapper(),
     });
     expect(mockedFetch).not.toHaveBeenCalled();
@@ -75,7 +96,7 @@ describe("useAgentGraph", () => {
   test("surfaces an error when the API client rejects", async () => {
     mockedFetch.mockRejectedValueOnce(new Error("boom 500"));
 
-    const { result } = renderHook(() => useAgentGraph("t1", "r1"), {
+    const { result } = renderHook(() => useAgentGraph("r1"), {
       wrapper: wrapper(),
     });
 
@@ -83,8 +104,8 @@ describe("useAgentGraph", () => {
     expect(result.current.error).toBeInstanceOf(Error);
   });
 
-  test("stays disabled when explicitly disabled, even with both ids", () => {
-    renderHook(() => useAgentGraph("t1", "r1", { enabled: false }), {
+  test("stays disabled when explicitly disabled, even with a run id", () => {
+    renderHook(() => useAgentGraph("r1", { enabled: false }), {
       wrapper: wrapper(),
     });
     expect(mockedFetch).not.toHaveBeenCalled();
@@ -93,10 +114,9 @@ describe("useAgentGraph", () => {
   test("polls when a refetch interval is provided", async () => {
     mockedFetch.mockResolvedValue(snapshot());
 
-    renderHook(
-      () => useAgentGraph("t1", "r1", { refetchIntervalMs: 40 }),
-      { wrapper: wrapper() },
-    );
+    renderHook(() => useAgentGraph("r1", { refetchIntervalMs: 40 }), {
+      wrapper: wrapper(),
+    });
 
     // Initial fetch plus at least one interval-driven refetch.
     await waitFor(
@@ -108,7 +128,7 @@ describe("useAgentGraph", () => {
   test("does not poll by default (single fetch)", async () => {
     mockedFetch.mockResolvedValue(snapshot());
 
-    const { result } = renderHook(() => useAgentGraph("t1", "r1"), {
+    const { result } = renderHook(() => useAgentGraph("r1"), {
       wrapper: wrapper(),
     });
 

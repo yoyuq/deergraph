@@ -18,8 +18,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from deerflow.runtime.graph.models import GraphEdge, GraphNode
-from deerflow.runtime.graph.sanitizer import Sanitizer
+from deergraph.runtime.models import GraphEdge, GraphNode
+from deergraph.runtime.sanitizer import Sanitizer
 
 # Stable logical node ids for the MVP skeleton.
 USER_NODE_ID = "user"

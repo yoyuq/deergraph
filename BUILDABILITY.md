@@ -1,8 +1,31 @@
-# BUILDABILITY.md
+﻿# BUILDABILITY.md
 
-最后更新：2026-05-31 18:40 (Asia/Shanghai) — OpenClaw (main agent)
+最后更新：2026-05-31 23:03 (Asia/Shanghai) — OpenClaw (main agent)
 
-DeerGraph 仓库当前**结构完整**，但**尚未可 build / test / typecheck**。本文档列出阻塞项与负责人。
+DeerGraph 仓库当前已完成 Step 4b：结构完整，并且可独立 typecheck / test。本文档保留原阻塞分析，同时记录已完成的契约实现与验收结果。
+
+## Step 4b 验收结果
+
+```powershell
+cd C:\Users\hjl\Projects\deergraph
+pnpm -r typecheck  # exit 0
+pnpm -r test       # @deergraph/react: 8 files / 63 tests passed
+
+cd C:\Users\hjl\Projects\deergraph\packages\server
+.\.venv\Scripts\python -m pip install -e .[dev]
+.\.venv\Scripts\python -m pytest -q  # 56 passed, 1 warning
+```
+
+已实现：
+
+- Python `RunEventSource` Protocol；`builder.py` 不再依赖 deer-flow 的 `RunEventStore`。
+- Python `create_router(event_source, auth_dep, prefix)`；router 不再 import `app.gateway.*`。
+- Python `MemoryRunEventSource` 测试源。
+- React `configureDeergraph` + `DeergraphProvider`；Context config 优先于 global config。
+- React 本地 `cn`、Button fallback、ScrollArea fallback。
+- `ChatAgentGraphPanel` 改为 `runId` only；deergraph 不再解析 `thread -> run`。
+
+## 原阻塞分析（已在 Step 4b 解决）
 
 ## 当前结构
 

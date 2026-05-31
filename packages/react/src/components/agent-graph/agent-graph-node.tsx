@@ -8,7 +8,7 @@ import {
   statusTone,
   type StatusTone,
 } from "@/core/agent-graph/visuals";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 
 const TONE_BADGE: Record<StatusTone, string> = {
   neutral: "bg-muted text-muted-foreground",

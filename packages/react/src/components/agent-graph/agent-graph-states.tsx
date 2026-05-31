@@ -1,7 +1,7 @@
 import { AlertTriangle, Loader2, Workflow } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 
 function Centered({
   children,

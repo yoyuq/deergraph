@@ -9,18 +9,18 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
-vi.mock("@/components/workspace/agent-graph/agent-graph-canvas", () => ({
+vi.mock("@/components/agent-graph/agent-graph-canvas", () => ({
   AgentGraphCanvas: () => <div data-testid="canvas-stub" />,
 }));
 
-import { AgentGraphDetailsPanel } from "@/components/workspace/agent-graph/agent-graph-details-panel";
-import { AgentGraphNodeCard } from "@/components/workspace/agent-graph/agent-graph-node";
+import { AgentGraphDetailsPanel } from "@/components/agent-graph/agent-graph-details-panel";
+import { AgentGraphNodeCard } from "@/components/agent-graph/agent-graph-node";
 import {
   AgentGraphEmpty,
   AgentGraphError,
   AgentGraphLoading,
-} from "@/components/workspace/agent-graph/agent-graph-states";
-import { AgentGraphView } from "@/components/workspace/agent-graph/agent-graph-view";
+} from "@/components/agent-graph/agent-graph-states";
+import { AgentGraphView } from "@/components/agent-graph/agent-graph-view";
 import type {
   AgentGraphNode,
   AgentGraphSnapshot,

@@ -7,8 +7,8 @@ fix the contract before implementation.
 
 from __future__ import annotations
 
-from deerflow.runtime.graph.models import GraphEdge, GraphNode, GraphSnapshot
-from deerflow.runtime.graph.sanitizer import (
+from deergraph.runtime.models import GraphEdge, GraphNode, GraphSnapshot
+from deergraph.runtime.sanitizer import (
     Sanitizer,
     is_sensitive_key,
     make_preview,

@@ -4,52 +4,37 @@ import { Workflow, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useAgentGraph } from "@/core/agent-graph/hooks";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 
 import { AgentGraphView } from "./agent-graph-view";
 
-/** Polling cadence while a run is in progress (Stage 4C near-realtime). */
-export const CHAT_GRAPH_POLL_INTERVAL_MS = 2500;
-
 export interface ChatAgentGraphPanelProps {
-  /** Current chat thread. Always available on the chat page. */
-  threadId: string;
   /**
-   * Resolved run id (live active run, or latest from the run list). `undefined`
-   * when the thread has no run yet — we show a hint instead of a fake graph.
+   * Resolved run id to display. `null` shows an empty-state hint instead of a
+   * fabricated graph. deergraph does not resolve thread→run — the host passes a
+   * run id in (ADR-004 contract 5).
    */
-  runId: string | undefined;
+  runId: string | null;
   /** Whether the panel is visible. Gates the query so a closed panel is inert. */
   open: boolean;
-  /**
-   * Whether the run is currently streaming. Enables snapshot polling; cleared
-   * once the run finishes so we settle on the terminal graph.
-   */
-  isRunning: boolean;
   onClose: () => void;
   className?: string;
 }
 
 /**
- * Chat-page container that reuses the Stage-3 {@link AgentGraphView} to show the
- * current thread/run's agent graph. Low-invasive: owns no chat state, never
- * fabricates a run id, and isolates graph errors from the chat stream (the view
- * renders its own error branch). Near-realtime is opt-in polling — no SSE, no
- * WebSocket (Stage 4C scope).
+ * Container that reuses {@link AgentGraphView} to show one run's agent graph.
+ * Low-invasive: owns no business state, never fabricates a run id, and isolates
+ * graph errors (the view renders its own error branch).
  */
 export function ChatAgentGraphPanel({
-  threadId,
   runId,
   open,
-  isRunning,
   onClose,
   className,
 }: ChatAgentGraphPanelProps) {
-  const hasRun = Boolean(runId);
-  const query = useAgentGraph(threadId, runId, {
+  const hasRun = runId != null;
+  const query = useAgentGraph(runId ?? undefined, {
     enabled: open && hasRun,
-    refetchIntervalMs:
-      open && isRunning && hasRun ? CHAT_GRAPH_POLL_INTERVAL_MS : false,
   });
 
   return (

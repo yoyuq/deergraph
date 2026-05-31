@@ -1,27 +1,19 @@
 /**
  * Tests for the DeerGraph snapshot API client.
  *
- * The page's real data path goes through `fetchAgentGraph`, which calls the
- * stage-1 endpoint `GET /api/visual/runs/{threadId}/{runId}/graph` via the
- * CSRF/credentials-aware fetcher. These tests pin the URL construction
- * (including path-segment encoding), the GET contract, JSON parsing, and the
- * error behaviour so a refactor can't silently break the live request.
+ * The page's real data path goes through `fetchAgentGraph`, which calls
+ * `GET {baseUrl}/api/visual/runs/{runId}/graph` via the injected runtime
+ * fetcher (ADR-004 contract 3). These tests pin the URL construction
+ * (including run-id encoding), the GET contract, JSON parsing, and the error
+ * behaviour so a refactor can't silently break the live request.
  */
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
-vi.mock("@/core/api/fetcher", () => ({
-  fetch: vi.fn(),
-}));
-
-vi.mock("@/core/config", () => ({
-  getBackendBaseURL: () => "",
-}));
-
 import { fetchAgentGraph } from "@/core/agent-graph/api";
 import type { AgentGraphSnapshot } from "@/core/agent-graph/types";
-import { fetch as fetcher } from "@/core/api/fetcher";
+import { configureDeergraph } from "@/runtime-config";
 
-const mockedFetch = vi.mocked(fetcher);
+const mockedFetch = vi.fn<typeof fetch>();
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -53,43 +45,52 @@ function sampleSnapshot(): AgentGraphSnapshot {
 
 beforeEach(() => {
   mockedFetch.mockReset();
+  // Same-origin base url + the mock fetcher injected as the global default.
+  configureDeergraph({ fetcher: mockedFetch, baseUrl: "" });
 });
 
 describe("fetchAgentGraph", () => {
   test("requests the stage-1 visual graph endpoint with GET", async () => {
     mockedFetch.mockResolvedValueOnce(jsonResponse(200, sampleSnapshot()));
-    await fetchAgentGraph("t1", "r1");
+    await fetchAgentGraph("r1");
 
     expect(mockedFetch).toHaveBeenCalledTimes(1);
     const [url, init] = mockedFetch.mock.calls[0]!;
-    expect(url).toBe("/api/visual/runs/t1/r1/graph");
+    expect(url).toBe("/api/visual/runs/r1/graph");
     expect(init?.method ?? "GET").toBe("GET");
   });
 
-  test("encodes thread and run path segments", async () => {
+  test("encodes the run path segment", async () => {
     mockedFetch.mockResolvedValueOnce(jsonResponse(200, sampleSnapshot()));
-    await fetchAgentGraph("thread/with space", "run#1");
+    await fetchAgentGraph("run#1");
 
     const [url] = mockedFetch.mock.calls[0]!;
-    expect(url).toBe(
-      "/api/visual/runs/thread%2Fwith%20space/run%231/graph",
-    );
+    expect(url).toBe("/api/visual/runs/run%231/graph");
+  });
+
+  test("prefixes the configured base url", async () => {
+    configureDeergraph({ fetcher: mockedFetch, baseUrl: "https://api.example.com" });
+    mockedFetch.mockResolvedValueOnce(jsonResponse(200, sampleSnapshot()));
+    await fetchAgentGraph("r1");
+
+    const [url] = mockedFetch.mock.calls[0]!;
+    expect(url).toBe("https://api.example.com/api/visual/runs/r1/graph");
   });
 
   test("returns the parsed snapshot on 200", async () => {
     const snap = sampleSnapshot();
     mockedFetch.mockResolvedValueOnce(jsonResponse(200, snap));
-    const result = await fetchAgentGraph("t1", "r1");
+    const result = await fetchAgentGraph("r1");
     expect(result).toEqual(snap);
   });
 
   test("throws with the status code on a non-2xx response", async () => {
     mockedFetch.mockResolvedValueOnce(jsonResponse(404, { detail: "nope" }));
-    await expect(fetchAgentGraph("t1", "missing")).rejects.toThrow(/404/);
+    await expect(fetchAgentGraph("missing")).rejects.toThrow(/404/);
   });
 
   test("propagates a network-layer rejection", async () => {
     mockedFetch.mockRejectedValueOnce(new TypeError("Failed to fetch"));
-    await expect(fetchAgentGraph("t1", "r1")).rejects.toBeInstanceOf(TypeError);
+    await expect(fetchAgentGraph("r1")).rejects.toBeInstanceOf(TypeError);
   });
 });

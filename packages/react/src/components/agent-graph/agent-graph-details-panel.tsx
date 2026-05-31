@@ -7,7 +7,7 @@ import {
   nodeRoleLabel,
   statusLabel,
 } from "@/core/agent-graph/visuals";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 
 function Field({ label, value }: { label: string; value: string }) {
   return (

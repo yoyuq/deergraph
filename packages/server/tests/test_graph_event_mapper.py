@@ -7,8 +7,8 @@ stored by RunJournal.
 
 from __future__ import annotations
 
-from deerflow.runtime.graph import event_mapper as em
-from deerflow.runtime.graph.sanitizer import Sanitizer
+from deergraph.runtime import event_mapper as em
+from deergraph.runtime.sanitizer import Sanitizer
 
 SANI = Sanitizer()
 
