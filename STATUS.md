@@ -13,7 +13,7 @@
 | 3 | Frontend Static Graph（独立静态前端页面） | 已完成 | 提交 `c25d93f`，OpenClaw 审查通过 |
 | 4 | Chat Tab Integration + Near-Realtime | 已完成 | 提交 `c49b4e1` + `e45c287`，OpenClaw 审查通过 |
 | 5 | Interaction & Readability | 未开始 | UX 决策，需用户拍板 |
-| 6 | Demo & Documentation | 已完成 | 提交 `<step6-sha>`，OpenClaw 审查通过 |
+| 6 | Demo & Documentation | 已完成 | 提交 `1d6b5a2`，OpenClaw 审查通过 |
 
 ## 最近提交（deer-flow 仓库）
 
