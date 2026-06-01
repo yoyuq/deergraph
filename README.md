@@ -1,49 +1,187 @@
-# DeerGraph — 项目协调目录
+# DeerGraph
 
-这个目录**不是**代码仓库，是 DeerGraph 项目的协调中心。
+> A visual runtime graph for DeerFlow multi-agent execution.
 
-## 当前真实代码位置
+DeerGraph renders real-time execution graphs showing how DeerFlow's lead agent
+delegates tasks to sub-agents, how tool calls flow, and how results converge —
+all as an interactive node-and-edge diagram powered by React Flow.
 
-DeerGraph 的实现当前仍在 deer-flow 仓库内：
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+
+## Architecture
 
 ```
-C:\Users\hjl\Projects\deer-flow
+┌──────────────────────────────────────────────────────────────┐
+│                     Your LangGraph Agent                      │
+│                                                               │
+│  RunEventStore ──▶ RunEventSource (adapter) ──▶ Graph Builder│
+│                                                       │      │
+│                                          GraphSnapshot (JSON) │
+│                                                       │      │
+│  ┌─────────────────────────────────────────────────────┐     │
+│  │           FastAPI: GET /graph                        │     │
+│  └──────────────────────┬──────────────────────────────┘     │
+│                         │ SSE / polling                       │
+│  ┌──────────────────────▼──────────────────────────────┐     │
+│  │     @deergraph/react (ChatAgentGraphPanel)          │     │
+│  │     React Flow + TanStack Query                     │     │
+│  └─────────────────────────────────────────────────────┘     │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-实际产物分布：
+## Packages
 
-- 后端 Graph Snapshot API
-  - `backend/app/gateway/routers/visual_runs.py`
-  - `backend/packages/harness/deerflow/runtime/graph/`
-  - `backend/tests/test_graph_*.py`
-  - `backend/tests/test_visual_runs_router.py`
-- 前端 Static Graph + Chat 集成
-  - `frontend/src/core/agent-graph/`
-  - `frontend/src/components/workspace/agent-graph/`
-  - `frontend/src/app/workspace/chats/[thread_id]/runs/[run_id]/graph/page.tsx`
-  - `frontend/src/app/workspace/chats/[thread_id]/page.tsx`（聊天页集成点）
-  - `frontend/tests/unit/core/agent-graph/`
-  - `frontend/tests/unit/components/agent-graph/`
-- 计划与设计文档
-  - `docs/plans/2026-05-31-deergraph-*.md`
-  - `docs/plans/deergraph-*.md`
+| Package | Version | Description |
+|---------|---------|-------------|
+| [`packages/server`](./packages/server) | 0.1.0 | Python: graph models, event mapper, builder, FastAPI router |
+| [`packages/react`](./packages/react) | 0.1.0 | React: `ChatAgentGraphPanel`, `AgentGraphView`, hooks, types |
 
-## 这个目录放什么
+## Quick Start
 
-- `README.md` — 入口（本文件）。
-- `STATUS.md` — 阶段看板和当前进度。
-- `discussions/` — 用户、OpenClaw（main agent）、Claude Code 三方协作的对话/交接/审查记录。
-- `decisions/` — DeerGraph 自己的 ADR，比如“是否最终拆出 deer-flow 独立成仓库”。
+### 1. Install the Python package
 
-## 这个目录不放什么
+```bash
+# From GitHub (recommended)
+pip install "deergraph-server @ git+https://github.com/yoyuq/deergraph@main#subdirectory=packages/server"
 
-- 不放代码副本。代码 single source of truth 在 deer-flow。
-- 不放重复的计划书。计划书 single source of truth 在 deer-flow 的 `docs/plans/`，这里只放对应链接和摘要。
+# Or with uv
+uv add "deergraph-server @ git+https://github.com/yoyuq/deergraph@main#subdirectory=packages/server"
+```
 
-## 为什么没有把代码物理迁出 deer-flow
+### 2. Install the React package
 
-简短结论：阶段 1～4 已经作为提交进入 deer-flow 的 git 历史，且阶段 4 的实现本质上是聊天页内部集成，不是松耦合的独立子系统。
+```bash
+# From GitHub (recommended)
+pnpm add @deergraph/react@github:yoyuq/deergraph#main
 
-详见：
+# Or npm
+npm install @deergraph/react@github:yoyuq/deergraph#main
+```
 
-- `decisions/ADR-001-repo-layout.md`
+### 3. Backend: Expose the graph API
+
+```python
+from deergraph.runtime.ports import RunEventSource
+from deergraph.server.router import create_router
+
+# 1) Implement the RunEventSource port for your event store
+class MyEventSource(RunEventSource):
+    def get_events(self, thread_id: str, run_id: str) -> list[RunEvent]:
+        # Query your LangGraph RunEventStore / database here
+        ...
+
+# 2) Create and mount the FastAPI router
+router = create_router(event_source=MyEventSource())
+app.include_router(router, prefix="/api/visual")
+```
+
+### 4. Frontend: Render the graph panel
+
+```tsx
+import {
+  ChatAgentGraphPanel,
+  DeergraphProvider,
+  type DeergraphRuntimeConfig,
+} from "@deergraph/react";
+
+// Build the runtime config for your thread
+const runtime: DeergraphRuntimeConfig = {
+  threadId: "your-thread-id",
+  // Optionally override the API base URL:
+  // baseUrl: "http://localhost:8000/api/visual",
+};
+
+function App() {
+  return (
+    <DeergraphProvider value={runtime}>
+      <ChatAgentGraphPanel />
+    </DeergraphProvider>
+  );
+}
+```
+
+## DeerFlow Integration
+
+DeerGraph is designed as a standalone package that integrates into any
+LangGraph-based agent system. For the reference DeerFlow integration, see:
+
+- **Backend**: `RunEventStoreSource` adapts DeerFlow's `RunEventStore` → DeerGraph's `RunEventSource` port
+- **Frontend**: `createDeerFlowDeergraphRuntime()` in `@/core/deergraph/runtime`
+
+The integration adds exactly **2 files** to the host project:
+1. A thin adapter implementing the `RunEventSource` port
+2. A runtime config factory for the React provider
+
+## API Reference
+
+### `GET /api/visual/runs/{thread_id}/{run_id}/graph`
+
+Returns a `GraphSnapshot` JSON:
+
+```json
+{
+  "thread_id": "...",
+  "run_id": "...",
+  "nodes": [
+    { "id": "user-1", "role": "user", "label": "User", "status": "completed" },
+    { "id": "agent-1", "role": "lead_agent", "label": "Lead Agent", "status": "completed" },
+    { "id": "sub-1", "role": "subagent", "label": "Research Subagent", "status": "running" }
+  ],
+  "edges": [
+    { "source": "user-1", "target": "agent-1", "label": "request" },
+    { "source": "agent-1", "target": "sub-1", "label": "task" }
+  ],
+  "built_at": "2026-06-01T09:00:23Z"
+}
+```
+
+### React Components
+
+| Export | Description |
+|--------|-------------|
+| `ChatAgentGraphPanel` | Drop-in panel: graph + detail sidebar + auto-refresh |
+| `AgentGraphView` | Core graph canvas with React Flow |
+| `DeergraphProvider` | Context provider for runtime config |
+| `configureDeergraph` | Hook to set/override runtime config |
+| `useGraphSnapshot` | Low-level hook: fetch + poll a snapshot |
+
+### Configuration
+
+| Prop / Option | Default | Description |
+|---------------|---------|-------------|
+| `threadId` | *(required)* | LangGraph thread ID |
+| `baseUrl` | `""` (same-origin) | API base URL for graph endpoint |
+| `refetchIntervalMs` | `2000` | Polling interval for near-realtime updates |
+
+## Examples
+
+- **`examples/demo_snapshot.py`** — Python-only: build a mock snapshot and print JSON. No server needed.
+- **`examples/demo_standalone.html`** — Browser-only: open the file to see a static graph with mock data.
+
+## Development
+
+```bash
+# Clone
+git clone https://github.com/yoyuq/deergraph.git
+cd deergraph
+
+# Install dependencies
+pnpm install
+
+# Build React package
+pnpm --filter @deergraph/react build
+
+# Run Python tests
+cd packages/server
+python -m pytest -q
+
+# Run React tests
+pnpm -r test
+
+# Type-check everything
+pnpm -r typecheck
+```
+
+## License
+
+MIT
