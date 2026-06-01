@@ -8,6 +8,8 @@ all as an interactive node-and-edge diagram powered by React Flow.
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
+📖 **[Full Installation Guide →](./INSTALL.md)**
+
 ## Architecture
 
 ```
