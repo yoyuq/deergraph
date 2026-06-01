@@ -1,4 +1,0 @@
-﻿docs: add INSTALL.md + link from README
-
-Step-by-step guide for installing both packages from GitHub,
-with pnpm SSH workaround and DeerFlow integration instructions.
