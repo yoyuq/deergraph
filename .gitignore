@@ -21,6 +21,7 @@ dist/
 # Python
 __pycache__/
 *.py[cod]
+.commitmsg.txt
 .venv/
 venv/
 *.egg-info/
