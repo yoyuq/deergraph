@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DeerGraph — Standalone Demo</title>
+    <!--
+      Self-contained DeerGraph demo. No backend, no build step: open this file
+      directly in a browser.
+
+      The SNAPSHOT constant below is the exact wire payload produced by
+      `examples/demo_snapshot.py` (GraphSnapshot.to_dict()), i.e. the same JSON
+      the FastAPI router returns from
+      `GET /api/visual/runs/{run_id}/graph`.
+
+      Rendering mirrors the React package's pure helpers so the shape matches
+      production:
+        - layout: column-by-role (DEPTH) x stack-within-column (ROW_GAP),
+          see packages/react/src/core/agent-graph/layout.ts
+        - colours: status -> tone, see
+          packages/react/src/core/agent-graph/visuals.ts
+      This file intentionally uses vanilla SVG instead of React Flow so it has
+      zero dependencies.
+    -->
+    <style>
+      :root {
+        --bg: #0b0e14;
+        --panel: #11151f;
+        --border: #232a39;
+        --text: #e6e9ef;
+        --muted: #8b94a7;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      }
+      .app { display: flex; flex-direction: column; height: 100vh; }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        height: 52px;
+        padding: 0 16px;
+        border-bottom: 1px solid var(--border);
+        background: var(--panel);
+      }
+      header .title { font-size: 14px; font-weight: 600; }
+      header .run { font-size: 12px; color: var(--muted); }
+      .legend { margin-left: auto; display: flex; gap: 14px; font-size: 12px; color: var(--muted); }
+      .legend span { display: inline-flex; align-items: center; gap: 6px; }
+      .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+      main { display: flex; min-height: 0; flex: 1; }
+      .canvas { flex: 1; overflow: auto; }
+      svg { display: block; }
+
+      .node rect { rx: 10; ry: 10; stroke-width: 1.5; }
+      .node .role { font-size: 11px; fill: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+      .node .label { font-size: 14px; font-weight: 600; fill: var(--text); }
+      .node .summary { font-size: 11px; fill: var(--muted); }
+      .node .meta { font-size: 10px; fill: var(--muted); }
+      .node { cursor: pointer; }
+      .node:hover rect { stroke: #6ea8fe; }
+
+      .edge path { fill: none; stroke: #3a465c; }
+      .edge-label { font-size: 10px; fill: var(--muted); }
+
+      aside {
+        width: 320px;
+        flex-shrink: 0;
+        border-left: 1px solid var(--border);
+        background: var(--panel);
+        padding: 16px;
+        overflow: auto;
+        font-size: 13px;
+      }
+      aside h2 { font-size: 13px; margin: 0 0 12px; color: var(--muted); font-weight: 600; }
+      aside .field { margin-bottom: 12px; }
+      aside .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+      aside .v { font-size: 13px; word-break: break-word; white-space: pre-wrap; }
+      aside .badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .empty { color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header>
+        <div class="title">DeerGraph — Agent Graph</div>
+        <div class="run" id="runLabel"></div>
+        <div class="legend">
+          <span><i class="dot" style="background:#9aa4b2"></i>user / lead</span>
+          <span><i class="dot" style="background:#6ea8fe"></i>subagent</span>
+          <span><i class="dot" style="background:#3fb950"></i>completed</span>
+          <span><i class="dot" style="background:#d29922"></i>running/cancelled</span>
+          <span><i class="dot" style="background:#f85149"></i>failed</span>
+        </div>
+      </header>
+      <main>
+        <div class="canvas"><svg id="graph"></svg></div>
+        <aside id="details">
+          <h2>Node Details</h2>
+          <p class="empty">Click a node to see its details.</p>
+        </aside>
+      </main>
+    </div>
+
+    <script>
+      // ----- Embedded snapshot (wire format from demo_snapshot.py) ----------
+      const SNAPSHOT = {
+        "threadId": "demo-thread-001",
+        "runId": "demo-run-001",
+        "version": 1,
+        "nodes": [
+          { "id": "lead_agent", "type": "lead_agent", "label": "Lead Agent", "status": "completed", "threadId": "demo-thread-001", "runId": "demo-run-001" },
+          { "id": "user", "type": "user", "label": "User", "status": "completed", "threadId": "demo-thread-001", "runId": "demo-run-001", "startedAt": "2026-06-01T09:00:00+00:00", "summary": "Compare DeerFlow and LangGraph, then summarise their differences." },
+          { "id": "subagent:call_research_deerflow", "type": "subagent", "label": "Subagent", "status": "completed", "threadId": "demo-thread-001", "runId": "demo-run-001", "parentId": "lead_agent", "correlationId": "call_research_deerflow", "startedAt": "2026-06-01T09:00:01+00:00", "endedAt": "2026-06-01T09:00:12+00:00", "durationMs": 11000, "summary": "Research DeerFlow architecture and core abstractions.", "inputPreview": "Research DeerFlow architecture and core abstractions.", "outputPreview": "DeerFlow uses a super-agent harness with task tool and SubagentExecutor." },
+          { "id": "subagent:call_research_langgraph", "type": "subagent", "label": "Subagent", "status": "completed", "threadId": "demo-thread-001", "runId": "demo-run-001", "parentId": "lead_agent", "correlationId": "call_research_langgraph", "startedAt": "2026-06-01T09:00:01+00:00", "endedAt": "2026-06-01T09:00:18+00:00", "durationMs": 17000, "summary": "Research LangGraph runtime model and state machine.", "inputPreview": "Research LangGraph runtime model and state machine.", "outputPreview": "LangGraph models execution as a stateful graph with checkpointers." },
+          { "id": "final", "type": "final", "label": "Final Answer", "status": "completed", "threadId": "demo-thread-001", "runId": "demo-run-001", "parentId": "lead_agent", "endedAt": "2026-06-01T09:00:22+00:00", "summary": "DeerFlow is a super-agent harness orchestrating sub-agents via the task tool, while LangGraph is a state-machine runtime; DeerFlow is task-decomposition oriented and LangGraph is graph-execution oriented.", "outputPreview": "DeerFlow is a super-agent harness orchestrating sub-agents via the task tool, while LangGraph is a state-machine runtime; DeerFlow is task-decomposition oriented and LangGraph is graph-execution oriented." }
+        ],
+        "edges": [
+          { "id": "edge:user->lead", "source": "user", "target": "lead_agent", "type": "input" },
+          { "id": "edge:lead->subagent:call_research_deerflow", "source": "lead_agent", "target": "subagent:call_research_deerflow", "type": "delegates", "correlationId": "call_research_deerflow" },
+          { "id": "edge:lead->subagent:call_research_langgraph", "source": "lead_agent", "target": "subagent:call_research_langgraph", "type": "delegates", "correlationId": "call_research_langgraph" },
+          { "id": "edge:subagent:call_research_deerflow->lead", "source": "subagent:call_research_deerflow", "target": "lead_agent", "type": "returns", "correlationId": "call_research_deerflow" },
+          { "id": "edge:subagent:call_research_langgraph->lead", "source": "subagent:call_research_langgraph", "target": "lead_agent", "type": "returns", "correlationId": "call_research_langgraph" },
+          { "id": "edge:lead->final", "source": "lead_agent", "target": "final", "type": "produces" }
+        ],
+        "truncated": false,
+        "updatedAt": "2026-06-01T09:00:23+00:00"
+      };
+
+      // ----- Layout (mirrors layout.ts) -------------------------------------
+      const COLUMN_GAP = 300;
+      const ROW_GAP = 150;
+      const NODE_W = 220;
+      const NODE_H = 96;
+      const PAD = 40;
+      const DEPTH = { user: 0, lead_agent: 1, subagent: 2, tool: 2, final: 3, error: 3 };
+
+      // ----- Visuals (mirrors visuals.ts) -----------------------------------
+      const ROLE_LABELS = { user: "User", lead_agent: "Lead Agent", subagent: "Subagent", tool: "Tool", final: "Final Answer", error: "Error" };
+      const STATUS_TONE = { pending: "neutral", running: "running", completed: "success", failed: "danger", cancelled: "warning", timeout: "warning" };
+      const TONE_COLOR = { neutral: "#9aa4b2", running: "#6ea8fe", success: "#3fb950", warning: "#d29922", danger: "#f85149" };
+      const TYPE_FILL = { user: "#1b2230", lead_agent: "#1b2230", subagent: "#15203a", tool: "#15203a", final: "#15261b", error: "#2a1517" };
+
+      function formatDuration(ms) {
+        if (ms === undefined || ms === null || Number.isNaN(ms)) return null;
+        if (ms < 1000) return ms + "ms";
+        const s = ms / 1000;
+        if (s < 60) return (Math.round(s * 10) / 10) + "s";
+        const m = Math.floor(s / 60);
+        return m + "m " + Math.round(s - m * 60) + "s";
+      }
+
+      const SVG_NS = "http://www.w3.org/2000/svg";
+      function el(name, attrs, text) {
+        const node = document.createElementNS(SVG_NS, name);
+        for (const k in attrs) node.setAttribute(k, attrs[k]);
+        if (text !== undefined) node.textContent = text;
+        return node;
+      }
+
+      function layout(snapshot) {
+        const rowByDepth = {};
+        const pos = {};
+        for (const n of snapshot.nodes) {
+          const depth = DEPTH[n.type] ?? 0;
+          const row = rowByDepth[depth] ?? 0;
+          rowByDepth[depth] = row + 1;
+          pos[n.id] = { x: PAD + depth * COLUMN_GAP, y: PAD + row * ROW_GAP };
+        }
+        return pos;
+      }
+
+      function truncate(text, max) {
+        if (!text) return "";
+        return text.length > max ? text.slice(0, max - 1) + "…" : text;
+      }
+
+      function render() {
+        const svg = document.getElementById("graph");
+        document.getElementById("runLabel").textContent =
+          "run " + SNAPSHOT.runId + " · " + SNAPSHOT.nodes.length + " nodes · " + SNAPSHOT.edges.length + " edges";
+
+        const pos = layout(SNAPSHOT);
+        let maxX = 0, maxY = 0;
+        for (const id in pos) {
+          maxX = Math.max(maxX, pos[id].x + NODE_W + PAD);
+          maxY = Math.max(maxY, pos[id].y + NODE_H + PAD);
+        }
+        svg.setAttribute("width", maxX);
+        svg.setAttribute("height", maxY);
+
+        // arrowhead marker
+        const defs = el("defs", {});
+        const marker = el("marker", { id: "arrow", viewBox: "0 0 10 10", refX: "9", refY: "5", markerWidth: "7", markerHeight: "7", orient: "auto-start-reverse" });
+        marker.appendChild(el("path", { d: "M 0 0 L 10 5 L 0 10 z", fill: "#3a465c" }));
+        defs.appendChild(marker);
+        svg.appendChild(defs);
+
+        // edges first (under nodes)
+        for (const e of SNAPSHOT.edges) {
+          const s = pos[e.source], t = pos[e.target];
+          if (!s || !t) continue;
+          const g = el("g", { class: "edge" });
+          // anchor on node mid-right of source, mid-left of target when going forward
+          const forward = t.x >= s.x;
+          const x1 = forward ? s.x + NODE_W : s.x;
+          const y1 = s.y + NODE_H / 2;
+          const x2 = forward ? t.x : t.x + NODE_W;
+          const y2 = t.y + NODE_H / 2;
+          const dx = Math.max(40, Math.abs(x2 - x1) / 2);
+          const c1x = forward ? x1 + dx : x1 - dx;
+          const c2x = forward ? x2 - dx : x2 + dx;
+          const d = "M " + x1 + " " + y1 + " C " + c1x + " " + y1 + " " + c2x + " " + y2 + " " + x2 + " " + y2;
+          const path = el("path", { d: d, stroke: "#3a465c", "stroke-width": "1.5", "marker-end": "url(#arrow)" });
+          if (e.type === "returns") path.setAttribute("stroke-dasharray", "5 4");
+          g.appendChild(path);
+          const midx = (x1 + x2) / 2, midy = (y1 + y2) / 2 - 4;
+          g.appendChild(el("text", { class: "edge-label", x: midx, y: midy, "text-anchor": "middle" }, e.type));
+          svg.appendChild(g);
+        }
+
+        // nodes
+        for (const n of SNAPSHOT.nodes) {
+          const p = pos[n.id];
+          const tone = STATUS_TONE[n.status] ?? "neutral";
+          const g = el("g", { class: "node", transform: "translate(" + p.x + "," + p.y + ")" });
+          g.appendChild(el("rect", {
+            width: NODE_W, height: NODE_H, rx: 10, ry: 10,
+            fill: TYPE_FILL[n.type] ?? "#161b26",
+            stroke: TONE_COLOR[tone], "stroke-width": "1.5"
+          }));
+          // status dot
+          g.appendChild(el("circle", { cx: NODE_W - 16, cy: 16, r: 5, fill: TONE_COLOR[tone] }));
+          g.appendChild(el("text", { class: "role", x: 14, y: 22 }, (ROLE_LABELS[n.type] ?? n.type).toUpperCase()));
+          g.appendChild(el("text", { class: "label", x: 14, y: 44 }, n.label));
+          const sub = n.summary ?? n.inputPreview ?? n.outputPreview ?? "";
+          g.appendChild(el("text", { class: "summary", x: 14, y: 64 }, truncate(sub, 34)));
+          const dur = formatDuration(n.durationMs);
+          const metaParts = [n.status];
+          if (dur) metaParts.push(dur);
+          g.appendChild(el("text", { class: "meta", x: 14, y: 82 }, metaParts.join("  ·  ")));
+          g.addEventListener("click", function () { showDetails(n); });
+          svg.appendChild(g);
+        }
+      }
+
+      function showDetails(n) {
+        const aside = document.getElementById("details");
+        const tone = STATUS_TONE[n.status] ?? "neutral";
+        const dur = formatDuration(n.durationMs);
+        const rows = [];
+        const add = (k, v) => { if (v !== undefined && v !== null && v !== "") rows.push({ k, v }); };
+        add("Role", ROLE_LABELS[n.type] ?? n.type);
+        add("Node id", n.id);
+        add("Correlation id", n.correlationId);
+        add("Started at", n.startedAt);
+        add("Ended at", n.endedAt);
+        add("Duration", dur);
+        add("Summary", n.summary);
+        add("Input", n.inputPreview);
+        add("Output", n.outputPreview);
+        add("Error", n.error);
+
+        let html = '<h2>Node Details</h2>';
+        html += '<div class="field"><span class="badge" style="background:' + TONE_COLOR[tone] + '20;color:' + TONE_COLOR[tone] + '">' +
+          n.status + '</span></div>';
+        for (const r of rows) {
+          html += '<div class="field"><div class="k">' + r.k + '</div><div class="v">' + escapeHtml(String(r.v)) + '</div></div>';
+        }
+        aside.innerHTML = html;
+      }
+
+      function escapeHtml(s) {
+        return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      }
+
+      render();
+    </script>
+  </body>
+</html>

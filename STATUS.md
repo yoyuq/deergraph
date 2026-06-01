@@ -1,6 +1,6 @@
 # DeerGraph 状态看板
 
-最后更新：2026-05-31 23:03 (Asia/Shanghai)
+最后更新：2026-06-01 10:58 (Asia/Shanghai)
 更新者：OpenClaw (main agent)
 
 ## 阶段进度
@@ -13,7 +13,7 @@
 | 3 | Frontend Static Graph（独立静态前端页面） | 已完成 | 提交 `c25d93f`，OpenClaw 审查通过 |
 | 4 | Chat Tab Integration + Near-Realtime | 已完成 | 提交 `c49b4e1` + `e45c287`，OpenClaw 审查通过 |
 | 5 | Interaction & Readability | 未开始 | UX 决策，需用户拍板 |
-| 6 | Demo & Documentation | 未开始 | 需用户定面向人群与演示形式 |
+| 6 | Demo & Documentation | 已完成 | 提交 `<step6-sha>`，OpenClaw 审查通过 |
 
 ## 最近提交（deer-flow 仓库）
 
